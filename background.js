@@ -30,6 +30,15 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, oldTab) {
     tabHandler(oldTab, changeInfo);
 });
 
+chrome.browserAction.onClicked.addListener(function(tab) {
+    if (tab != null) {
+        console.debug("Browser action clicked - unlocking current tab (if locked).");
+        unlockTab(tab.id);
+    }
+});
+
+// TODO put this in a real class
+
 var LastActiveTabId = -1;
 
 var VisitedTabs = {};
@@ -110,8 +119,25 @@ function shouldLockTab(tabInfo, tabLockState) {
 
 function lockTab(tabId) {
     console.debug("🔒🔒🔒🔒 Locking tab " + tabId);
+
+    // TODO inject our own unique css and add/remove that class instead of direct manip of doc styles
+    chrome.tabs.executeScript(
+        tabId, 
+        {
+            "code": "document.body.style.filter = 'blur(8px)'"
+        },
+        null
+    );
 }
 
 function unlockTab(tabId) {
     console.debug("🔓🔓🔓🔓 Unlocking tab " + tabId);
+
+    chrome.tabs.executeScript(
+        tabId, 
+        {
+            "code": "document.body.style.filter = ''"
+        },
+        null
+    );
 }
