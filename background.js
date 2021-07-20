@@ -3,11 +3,15 @@ chrome.runtime.onInstalled.addListener(function() {
 });
 
 chrome.tabs.onActivated.addListener(function(activeTabInfo) {
+    console.debug("⚡ tabs.onActivated");
+
     if (activeTabInfo != null) {
         if (activeTabInfo.tabId != chrome.tabs.TAB_ID_NONE) {
             console.debug("tabs.onActivated - activated tab ID " + activeTabInfo.tabId);
 
-            chrome.tabs.get(activeTabInfo.tabId, tabHandler);
+            setTimeout(() => {
+                chrome.tabs.get(activeTabInfo.tabId, tabHandler);
+            }, 500);
         }
         else {
             console.debug("tabs.onActivated - activated a tab with ID of chrome.tabs.TAB_ID_NONE (" + chrome.tabs.TAB_ID_NONE + ")");
@@ -19,18 +23,25 @@ chrome.tabs.onActivated.addListener(function(activeTabInfo) {
 });
 
 chrome.tabs.onCreated.addListener(function(tab) {
+    console.debug("⚡ tabs.onCreated");
     console.debug("Created a new tab with ID " + tab.id);
 
-    tabHandler(tab);
+    setTimeout(() => {
+        tabHandler(tab)
+    }, 500);
 });
 
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, oldTab) {
+    console.debug("⚡ tabs.onUpdated");
     console.debug("tabs.onUpdated - updated tab ID " + tabId);
 
-    tabHandler(oldTab, changeInfo);
+    setTimeout(() => {
+        tabHandler(oldTab, changeInfo)
+    }, 500);
 });
 
 chrome.browserAction.onClicked.addListener(function(tab) {
+    console.debug("⚡ browserAction.onClicked");
     if (tab != null) {
         console.debug("Browser action clicked - unlocking current tab (if locked).");
         unlockTab(tab.id);
@@ -44,28 +55,56 @@ var LastActiveTabId = -1;
 var VisitedTabs = {};
 
 var UrlsToLock = []; // TODO move this to config
-var TitlesToLock = [/Preskton/i]; // TODO move this to config
+var TitlesToLock = [/CONFIDENTIAL/i]; // TODO move this to config
 
 function tabHandler(tab, changeInfo) {
     var tabInfo = changeInfo ? reduceChangeInfo(tab, changeInfo) : reduceTab(tab);
 
-    var shouldLock = shouldLockTab(tabInfo, getTabLockState(tab.id));
+    if (tabInfo === null) return;
+
+    // blur the old tab if it needs it
+    console.debug("checking if we need to blur tab " + getLastTabId());
+
+    var lastActiveTabId = getLastTabId();
+    setTabVisited(tab); // do this early
+
+    if (lastActiveTabId !== null && lastActiveTabId !== undefined && lastActiveTabId > 0 && lastActiveTabId !== tabInfo.id) {
+        console.debug("Checking if we need to lock the old tab = " + lastActiveTabId);
+        
+        lastActiveTab = getCachedTabById(lastActiveTabId);
+
+        if (lastActiveTab !== null && shouldLockTab(lastActiveTab, lastActiveTab)) {
+            console.debug("Locking the old tab");
+            lockTab(lastActiveTab.id);
+        }
+    }
+
+    // handle the new tab and blur it if we didn't before / missed it
+    var shouldLock = shouldLockTab(tabInfo, getCachedTabById(tabInfo.id));
 
     if (shouldLock) {
         lockTab(tab.id);
     }
-
-    setTabVisited(tab.id);
 }
 
-function setTabVisited(tabId) {
-    console.debug("Setting tab ID " + tabId + " as visited.");
+function setTabVisited(tab) {
+    console.debug("Setting tab ID " + tab.id + " as visited.");
 
-    VisitedTabs[tabId] = {};
-    LastActiveTabId = tabId;
+    VisitedTabs[tab.id] = tab;
+    LastActiveTabId = tab.id;
+}
+
+function getCachedTabById(id) {
+    return id in VisitedTabs ? VisitedTabs[id] : null;
+}
+
+function getLastTabId() {
+    return LastActiveTabId;
 }
 
 function reduceTab(tab) {
+    if (tab === null || tab === undefined) return null;
+
     return {
         "id": tab.id,
         "url": tab.url || tab.pendingUrl,
